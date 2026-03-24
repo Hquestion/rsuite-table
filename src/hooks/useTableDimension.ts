@@ -321,7 +321,7 @@ const useTableDimension = <Row extends RowDataType, Key>(props: TableDimensionPr
     scrollX.current = value;
   }, []);
 
-  const getTableHeight = () => {
+  const getTableHeight = useCallback(() => {
     if (fillHeight) {
       return tableHeight.current;
     }
@@ -342,7 +342,7 @@ const useTableDimension = <Row extends RowDataType, Key>(props: TableDimensionPr
     }
 
     return height;
-  };
+  }, [autoHeight, autoHeightProp, data, fillHeight, headerHeight, heightProp, maxHeight, minHeight]);
 
   return {
     contentHeight,

@@ -27,6 +27,11 @@ interface AffixProps {
 }
 
 type ScrollContainer = HTMLElement | Window;
+type AffixState = {
+  container: HTMLElement | null;
+  style: React.CSSProperties | null;
+};
+const AFFIX_CONTAINER_COUNT = 'rsTableAffixContainerCount';
 
 const isElementContainer = (container: ScrollContainer): container is HTMLElement => {
   return container instanceof HTMLElement;
@@ -70,6 +75,57 @@ const getContainerElement = (
   return container;
 };
 
+const areStylesEqual = (
+  prevStyle: React.CSSProperties | null,
+  nextStyle: React.CSSProperties | null
+) => {
+  if (prevStyle === nextStyle) {
+    return true;
+  }
+
+  if (!prevStyle || !nextStyle) {
+    return !prevStyle && !nextStyle;
+  }
+
+  const prevKeys = Object.keys(prevStyle);
+  const nextKeys = Object.keys(nextStyle);
+
+  if (prevKeys.length !== nextKeys.length) {
+    return false;
+  }
+
+  return prevKeys.every(key => prevStyle[key] === nextStyle[key]);
+};
+
+const areAffixStatesEqual = (prevState: AffixState, nextState: AffixState) => {
+  return prevState.container === nextState.container && areStylesEqual(prevState.style, nextState.style);
+};
+
+const retainRelativeContainer = (container: HTMLElement) => {
+  const currentCount = Number(container.dataset[AFFIX_CONTAINER_COUNT] || 0);
+
+  if (currentCount === 0 && window.getComputedStyle(container).position === 'static') {
+    addStyle(container, 'position', 'relative');
+  }
+
+  container.dataset[AFFIX_CONTAINER_COUNT] = String(currentCount + 1);
+};
+
+const releaseRelativeContainer = (container: HTMLElement) => {
+  const currentCount = Number(container.dataset[AFFIX_CONTAINER_COUNT] || 0);
+
+  if (currentCount <= 1) {
+    delete container.dataset[AFFIX_CONTAINER_COUNT];
+
+    if (container.style.position === 'relative') {
+      removeStyle(container, 'position');
+    }
+    return;
+  }
+
+  container.dataset[AFFIX_CONTAINER_COUNT] = String(currentCount - 1);
+};
+
 const useAffix = (props: AffixProps) => {
   const {
     getTableHeight,
@@ -93,20 +149,25 @@ const useAffix = (props: AffixProps) => {
   const headerResizeListener = useRef<ListenerCallback>();
   const scrollbarResizeListener = useRef<ListenerCallback>();
   const adjustedContainersRef = useRef<HTMLElement[]>([]);
-  const [containerAffixState, setContainerAffixState] = useState<{
-    container: HTMLElement | null;
-    style: React.CSSProperties | null;
-  }>({
+  const [containerAffixState, setContainerAffixState] = useState<AffixState>({
     container: null,
     style: null
   });
-  const [headerAffixState, setHeaderAffixState] = useState<{
-    container: HTMLElement | null;
-    style: React.CSSProperties | null;
-  }>({
+  const [headerAffixState, setHeaderAffixState] = useState<AffixState>({
     container: null,
     style: null
   });
+  const tableHeight = getTableHeight();
+  const tableTop = tableOffset.current?.top || 0;
+  const headerTop = headerOffset.current?.top || 0;
+
+  const updateContainerAffixState = useCallback((nextState: AffixState) => {
+    setContainerAffixState(prevState => (areAffixStatesEqual(prevState, nextState) ? prevState : nextState));
+  }, []);
+
+  const updateHeaderAffixState = useCallback((nextState: AffixState) => {
+    setHeaderAffixState(prevState => (areAffixStatesEqual(prevState, nextState) ? prevState : nextState));
+  }, []);
 
   const getHorizontalScrollContainer = useCallback((): ScrollContainer => {
     const container = getContainerElement(affixHorizontalScrollbarContainer);
@@ -131,7 +192,7 @@ const useAffix = (props: AffixProps) => {
       const table = tableRef.current;
 
       if (!table) {
-        setContainerAffixState({ container: null, style: null });
+        updateContainerAffixState({ container: null, style: null });
         return;
       }
 
@@ -143,11 +204,11 @@ const useAffix = (props: AffixProps) => {
         target.scrollTop + target.clientHeight - headerHeight > offsetTop + bottom;
 
       if (!fixedScrollbar) {
-        setContainerAffixState({ container: null, style: null });
+        updateContainerAffixState({ container: null, style: null });
         return;
       }
 
-      setContainerAffixState({
+      updateContainerAffixState({
         container: target,
         style: {
           left: tableRect.left - containerRect.left + target.scrollLeft,
@@ -160,7 +221,7 @@ const useAffix = (props: AffixProps) => {
       return;
     }
 
-    setContainerAffixState({ container: null, style: null });
+    updateContainerAffixState({ container: null, style: null });
 
     const offsetTop = tableOffset.current?.top || 0;
 
@@ -184,7 +245,8 @@ const useAffix = (props: AffixProps) => {
     headerHeight,
     scrollbarXRef,
     tableOffset,
-    tableRef
+    tableRef,
+    updateContainerAffixState
   ]);
 
   const handleAffixTableHeader = useCallback(() => {
@@ -195,7 +257,7 @@ const useAffix = (props: AffixProps) => {
       const headerNode = headerWrapperRef.current;
 
       if (!headerNode) {
-        setHeaderAffixState({ container: null, style: null });
+        updateHeaderAffixState({ container: null, style: null });
         return;
       }
 
@@ -208,11 +270,11 @@ const useAffix = (props: AffixProps) => {
         target.scrollTop < offsetTop - top + contentHeight.current;
 
       if (!fixedHeader || !tableRect) {
-        setHeaderAffixState({ container: null, style: null });
+        updateHeaderAffixState({ container: null, style: null });
         return;
       }
 
-      setHeaderAffixState({
+      updateHeaderAffixState({
         container: target,
         style: {
           left: tableRect.left - containerRect.left + target.scrollLeft,
@@ -225,7 +287,7 @@ const useAffix = (props: AffixProps) => {
       return;
     }
 
-    setHeaderAffixState({ container: null, style: null });
+    updateHeaderAffixState({ container: null, style: null });
 
     const scrollY = window.scrollY || window.pageYOffset;
     const offsetTop = headerOffset.current?.top || 0;
@@ -242,7 +304,8 @@ const useAffix = (props: AffixProps) => {
     getHeaderScrollContainer,
     headerOffset,
     headerWrapperRef,
-    tableRef
+    tableRef,
+    updateHeaderAffixState
   ]);
 
   const handleAffix = useCallback(() => {
@@ -263,36 +326,35 @@ const useAffix = (props: AffixProps) => {
    * Update the position of the fixed element after the height of the table changes.
    * fix: https://github.com/rsuite/rsuite/issues/1716
    */
-  useUpdateEffect(handleAffix, [getTableHeight]);
+  useUpdateEffect(handleAffix, [headerTop, tableHeight, tableTop]);
 
   useEffect(() => {
     const headerTarget = getHeaderScrollContainer();
     const scrollbarTarget = getHorizontalScrollContainer();
 
     if (!isNumberOrTrue(affixHorizontalScrollbar)) {
-      setContainerAffixState({ container: null, style: null });
+      updateContainerAffixState({ container: null, style: null });
     }
 
     if (!isNumberOrTrue(affixHeader)) {
-      setHeaderAffixState({ container: null, style: null });
+      updateHeaderAffixState({ container: null, style: null });
     }
 
     if (
       isNumberOrTrue(affixHorizontalScrollbar) &&
       isElementContainer(scrollbarTarget) &&
-      window.getComputedStyle(scrollbarTarget).position === 'static'
+      !adjustedContainersRef.current.includes(scrollbarTarget)
     ) {
-      addStyle(scrollbarTarget, 'position', 'relative');
+      retainRelativeContainer(scrollbarTarget);
       adjustedContainersRef.current.push(scrollbarTarget);
     }
 
     if (
       isNumberOrTrue(affixHeader) &&
       isElementContainer(headerTarget) &&
-      window.getComputedStyle(headerTarget).position === 'static' &&
       !adjustedContainersRef.current.includes(headerTarget)
     ) {
-      addStyle(headerTarget, 'position', 'relative');
+      retainRelativeContainer(headerTarget);
       adjustedContainersRef.current.push(headerTarget);
     }
 
@@ -326,7 +388,7 @@ const useAffix = (props: AffixProps) => {
       headerResizeListener.current?.off();
       scrollbarResizeListener.current?.off();
 
-      adjustedContainersRef.current.forEach(container => removeStyle(container, 'position'));
+      adjustedContainersRef.current.forEach(releaseRelativeContainer);
       adjustedContainersRef.current = [];
     };
   }, [
@@ -337,7 +399,9 @@ const useAffix = (props: AffixProps) => {
     getHeaderScrollContainer,
     handleAffix,
     handleAffixTableHeader,
-    handleAffixHorizontalScrollbar
+    handleAffixHorizontalScrollbar,
+    updateContainerAffixState,
+    updateHeaderAffixState
   ]);
 
   return {
