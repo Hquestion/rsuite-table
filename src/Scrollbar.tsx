@@ -17,6 +17,7 @@ export interface ScrollbarProps extends Omit<StandardProps, 'onScroll'> {
   vertical?: boolean;
   length?: number;
   scrollLength?: number;
+  scrollOffset?: number;
   tableId?: string;
   onScroll?: (delta: number, event: React.MouseEvent) => void;
   onMouseDown?: (event: React.MouseEvent) => void;
@@ -33,6 +34,7 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
   const {
     length = 1,
     scrollLength = 1,
+    scrollOffset,
     classPrefix = 'scrollbar',
     vertical,
     className,
@@ -45,7 +47,7 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
   const { setCssPosition } = useTable();
   const [handlePressed, setHandlePressed] = useState(false);
   const [barOffset, setBarOffset] = useState<Offset | null>(null);
-  const scrollOffset = useRef(0);
+  const scrollOffsetRef = useRef(0);
   const scrollRange = useRef(scrollLength);
   const barRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,7 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
     [vertical ? 'height' : 'width']: `${width}%`,
     [vertical ? 'minHeight' : 'minWidth']: SCROLLBAR_MIN_WIDTH
   };
-  const valuenow = (scrollOffset.current / length) * 100 + width;
+  const valuenow = (scrollOffsetRef.current / length) * 100 + width;
 
   useLayoutEffect(() => {
     // Only update if we haven't set the offset yet
@@ -77,9 +79,9 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
   }, []); // Only run once on mount
 
   useUpdateEffect(() => {
-    if (scrollOffset.current) {
+    if (scrollOffsetRef.current) {
       // Update the position of the scroll bar when the height of the table content area changes.
-      scrollOffset.current = (scrollRange.current / scrollLength) * scrollOffset.current;
+      scrollOffsetRef.current = (scrollRange.current / scrollLength) * scrollOffsetRef.current;
       updateScrollBarPosition(0);
     }
 
@@ -99,7 +101,7 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
       updateScrollBarPosition(nextDelta, undefined, momentum);
     },
     resetScrollBarPosition: (forceDelta = 0) => {
-      scrollOffset.current = 0;
+      scrollOffsetRef.current = 0;
       updateScrollBarPosition(0, forceDelta);
     }
   }));
@@ -122,16 +124,16 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
       };
 
       if (typeof forceDelta === 'undefined') {
-        scrollOffset.current += delta;
-        scrollOffset.current = getSafeValue(scrollOffset.current);
+        scrollOffsetRef.current += delta;
+        scrollOffsetRef.current = getSafeValue(scrollOffsetRef.current);
       } else {
-        scrollOffset.current = getSafeValue(forceDelta);
+        scrollOffsetRef.current = getSafeValue(forceDelta);
       }
 
       if (vertical) {
-        setCssPosition?.(styles as CSSStyleDeclaration, 0, scrollOffset.current);
+        setCssPosition?.(styles as CSSStyleDeclaration, 0, scrollOffsetRef.current);
       } else {
-        setCssPosition?.(styles as CSSStyleDeclaration, scrollOffset.current, 0);
+        setCssPosition?.(styles as CSSStyleDeclaration, scrollOffsetRef.current, 0);
       }
       if (handleRef.current) {
         addStyle(handleRef.current, styles as CSSProperty);
@@ -150,6 +152,16 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
     [length, onScroll, scrollLength, updateScrollBarPosition]
   );
 
+  useUpdateEffect(() => {
+    if (typeof scrollOffset !== 'number') {
+      return;
+    }
+
+    const nextOffset = (scrollOffset / scrollLength) * length;
+    scrollOffsetRef.current = nextOffset;
+    updateScrollBarPosition(0, nextOffset);
+  }, [length, scrollLength, scrollOffset, updateScrollBarPosition]);
+
   const handleClick = useCallback(
     (event: React.MouseEvent) => {
       if (handleRef.current && handleRef.current?.contains(event.target as Node)) {
@@ -166,9 +178,9 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
       const delta = offset - handleWidth;
 
       const nextDelta =
-        offset > scrollOffset.current
-          ? delta - scrollOffset.current
-          : offset - scrollOffset.current;
+        offset > scrollOffsetRef.current
+          ? delta - scrollOffsetRef.current
+          : offset - scrollOffsetRef.current;
       handleScroll(nextDelta, event);
     },
     [barOffset, handleScroll, length, scrollLength, vertical]
