@@ -1132,6 +1132,143 @@ describe('Table', () => {
     });
   });
 
+  it('Should affix the header to the nearest scroll container automatically', async () => {
+    const data = [{ id: 1, name: 'a' }];
+
+    const App = () => {
+      const containerRef = useRef<HTMLDivElement>(null);
+
+      useLayoutEffect(() => {
+        const container = containerRef.current as HTMLDivElement;
+
+        Object.defineProperty(container, 'clientHeight', { configurable: true, value: 300 });
+        Object.defineProperty(container, 'scrollHeight', { configurable: true, value: 1000 });
+        Object.defineProperty(container, 'scrollTop', {
+          configurable: true,
+          value: 120,
+          writable: true
+        });
+        Object.defineProperty(container, 'scrollLeft', {
+          configurable: true,
+          value: 0,
+          writable: true
+        });
+
+        container.getBoundingClientRect = () => createRect(0, 0, 320, 300);
+
+        const table = container.querySelector('.rs-table') as HTMLDivElement;
+        const header = table.querySelector('.rs-table-header-row-wrapper') as HTMLDivElement;
+
+        table.getBoundingClientRect = () => createRect(12, 80 - container.scrollTop, 200, 400);
+        header.getBoundingClientRect = () => createRect(12, 80 - container.scrollTop, 200, 40);
+      }, []);
+
+      return (
+        <div ref={containerRef} data-testid="header-scroll-container" style={{ overflow: 'auto' }}>
+          <div style={{ paddingTop: 80 }}>
+            <Table affixHeader data={data} height={200} width={200}>
+              <Column width={120}>
+                <HeaderCell>ID</HeaderCell>
+                <Cell dataKey="id" />
+              </Column>
+              <Column width={160}>
+                <HeaderCell>Name</HeaderCell>
+                <Cell dataKey="name" />
+              </Column>
+            </Table>
+          </div>
+        </div>
+      );
+    };
+
+    render(<App />);
+
+    await waitFor(() => {
+      const scrollContainer = screen.getByTestId('header-scroll-container');
+      const table = screen.getByRole('grid');
+      const affixHeader = Array.from(scrollContainer.querySelectorAll('.rs-table-affix-header')).find(
+        element => element.parentElement === scrollContainer
+      ) as HTMLElement;
+
+      expect(affixHeader).to.exist;
+      expect(table.querySelector('.rs-table-affix-header')).to.not.exist;
+      expect(affixHeader).to.have.style('left', '12px');
+      expect(affixHeader).to.have.style('top', '120px');
+    });
+  });
+
+  it('Should allow overriding the header affix container', async () => {
+    const data = [{ id: 1, name: 'a' }];
+
+    const App = () => {
+      const outerRef = useRef<HTMLDivElement>(null);
+      const innerRef = useRef<HTMLDivElement>(null);
+
+      useLayoutEffect(() => {
+        const outer = outerRef.current as HTMLDivElement;
+        const inner = innerRef.current as HTMLDivElement;
+
+        Object.defineProperty(outer, 'clientHeight', { configurable: true, value: 320 });
+        Object.defineProperty(outer, 'scrollHeight', { configurable: true, value: 1200 });
+        Object.defineProperty(outer, 'scrollTop', { configurable: true, value: 140, writable: true });
+        Object.defineProperty(outer, 'scrollLeft', { configurable: true, value: 0, writable: true });
+        Object.defineProperty(inner, 'clientHeight', { configurable: true, value: 260 });
+        Object.defineProperty(inner, 'scrollHeight', { configurable: true, value: 900 });
+        Object.defineProperty(inner, 'scrollTop', { configurable: true, value: 40, writable: true });
+        Object.defineProperty(inner, 'scrollLeft', { configurable: true, value: 0, writable: true });
+
+        outer.getBoundingClientRect = () => createRect(0, 0, 360, 320);
+        inner.getBoundingClientRect = () => createRect(0, 40, 320, 260);
+
+        const table = inner.querySelector('.rs-table') as HTMLDivElement;
+        const header = table.querySelector('.rs-table-header-row-wrapper') as HTMLDivElement;
+
+        table.getBoundingClientRect = () => createRect(18, 100 - outer.scrollTop, 200, 400);
+        header.getBoundingClientRect = () => createRect(18, 100 - outer.scrollTop, 200, 40);
+      }, []);
+
+      return (
+        <div ref={outerRef} data-testid="outer-header-container" style={{ overflow: 'auto' }}>
+          <div ref={innerRef} data-testid="inner-header-container" style={{ overflow: 'auto' }}>
+            <div style={{ paddingTop: 100 }}>
+              <Table
+                affixHeader
+                affixHeaderContainer={outerRef}
+                data={data}
+                height={200}
+                width={200}
+              >
+                <Column width={120}>
+                  <HeaderCell>ID</HeaderCell>
+                  <Cell dataKey="id" />
+                </Column>
+                <Column width={160}>
+                  <HeaderCell>Name</HeaderCell>
+                  <Cell dataKey="name" />
+                </Column>
+              </Table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    render(<App />);
+
+    await waitFor(() => {
+      const outerContainer = screen.getByTestId('outer-header-container');
+      const innerContainer = screen.getByTestId('inner-header-container');
+      const affixHeader = Array.from(outerContainer.querySelectorAll('.rs-table-affix-header')).find(
+        element => element.parentElement === outerContainer
+      ) as HTMLElement;
+
+      expect(affixHeader).to.exist;
+      expect(innerContainer.querySelector('.rs-table-affix-header')).to.not.exist;
+      expect(affixHeader).to.have.style('left', '18px');
+      expect(affixHeader).to.have.style('top', '140px');
+    });
+  });
+
   it('Should support React.Fragment', () => {
     const data = [
       { id: 1, firstName: 'firstName', lastName: 'lastName', companyName: 'companyName' }
