@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useImperativeHandle, useReducer, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import isFunction from 'lodash/isFunction';
 import debounce from 'lodash/debounce';
 import Row, { RowProps } from './Row';
@@ -391,6 +392,7 @@ const Table = React.forwardRef(
     const tableBodyRef = useRef<HTMLDivElement>(null);
     const wheelWrapperRef = useRef<HTMLDivElement>(null);
     const scrollbarXRef = useRef<ScrollbarInstance>(null);
+    const affixScrollbarXRef = useRef<ScrollbarInstance>(null);
     const scrollbarYRef = useRef<ScrollbarInstance>(null);
 
     const handleTableResizeChange = (_prevSize, event: TableSizeChangeEventName) => {
@@ -449,15 +451,20 @@ const Table = React.forwardRef(
       onTableResizeChange: handleTableResizeChange
     });
 
-    useAffix({
+    const { horizontalScrollbarContainer, horizontalScrollbarWidth } = useAffix({
       getTableHeight,
       contentHeight,
+      contentWidth,
       affixHorizontalScrollbar,
       affixHeader,
+      tableRef,
+      tableWidth,
       tableOffset,
       headerOffset,
       headerHeight,
+      scrollX,
       scrollbarXRef,
+      affixScrollbarXRef,
       affixHeaderWrapperRef
     });
 
@@ -499,6 +506,7 @@ const Table = React.forwardRef(
       maxHeight,
       tableBodyRef,
       scrollbarXRef,
+      affixScrollbarXRef,
       scrollbarYRef,
       disabledScroll,
       loading,
@@ -952,6 +960,34 @@ const Table = React.forwardRef(
       return scrollbars;
     };
 
+    const renderAffixScrollbar = () => {
+      if (!hasHorizontalScrollbar || !horizontalScrollbarContainer) {
+        return null;
+      }
+
+      const affixWidth = horizontalScrollbarWidth || tableWidth.current;
+      const scrollOffset =
+        contentWidth.current > 0
+          ? (Math.abs(scrollX.current) / contentWidth.current) * affixWidth
+          : 0;
+
+      return createPortal(
+        <div className={prefix('affix-scrollbar-host')}>
+          <Scrollbar
+            tableId={id}
+            className={prefix('scrollbar-container-affix')}
+            style={{ width: affixWidth, display: 'none' }}
+            length={affixWidth}
+            onScroll={onScrollHorizontal}
+            scrollLength={contentWidth.current}
+            scrollOffset={scrollOffset}
+            ref={affixScrollbarXRef}
+          />
+        </div>,
+        horizontalScrollbarContainer
+      );
+    };
+
     const renderTableBody = (bodyCells: any[], rowWidth: number) => {
       const height = getTableHeight();
       const bodyHeight = height - headerHeight;
@@ -1133,31 +1169,34 @@ const Table = React.forwardRef(
         isTree={isTree}
         hasCustomTreeCol={hasCustomTreeCol}
       >
-        <div
-          role={isTree ? 'treegrid' : 'grid'}
-          // The aria-rowcount is specified on the element with the table.
-          // Its value is an integer equal to the total number of rows available, including header rows.
-          aria-rowcount={data.length + 1}
-          aria-colcount={colCounts.current}
-          aria-busy={loading}
-          {...rest}
-          className={classes}
-          style={styles}
-          ref={tableRef}
-          tabIndex={-1}
-          onKeyDown={onScrollByKeydown}
-        >
-          {showHeader && renderTableHeader(headerCells, rowWidth)}
-          {children && renderTableBody(bodyCells, rowWidth)}
-          {showHeader && (
-            <MouseArea
-              ref={mouseAreaRef}
-              addPrefix={prefix}
-              headerHeight={headerHeight}
-              height={getTableHeight()}
-            />
-          )}
-        </div>
+        <>
+          <div
+            role={isTree ? 'treegrid' : 'grid'}
+            // The aria-rowcount is specified on the element with the table.
+            // Its value is an integer equal to the total number of rows available, including header rows.
+            aria-rowcount={data.length + 1}
+            aria-colcount={colCounts.current}
+            aria-busy={loading}
+            {...rest}
+            className={classes}
+            style={styles}
+            ref={tableRef}
+            tabIndex={-1}
+            onKeyDown={onScrollByKeydown}
+          >
+            {showHeader && renderTableHeader(headerCells, rowWidth)}
+            {children && renderTableBody(bodyCells, rowWidth)}
+            {showHeader && (
+              <MouseArea
+                ref={mouseAreaRef}
+                addPrefix={prefix}
+                headerHeight={headerHeight}
+                height={getTableHeight()}
+              />
+            )}
+          </div>
+          {renderAffixScrollbar()}
+        </>
       </TableProvider>
     );
   }

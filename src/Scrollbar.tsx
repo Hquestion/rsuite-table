@@ -17,8 +17,9 @@ export interface ScrollbarProps extends Omit<StandardProps, 'onScroll'> {
   vertical?: boolean;
   length?: number;
   scrollLength?: number;
+  scrollOffset?: number;
   tableId?: string;
-  onScroll?: (delta: number, event: React.MouseEvent) => void;
+  onScroll?: (delta: number, event: React.MouseEvent, source?: HTMLDivElement | null) => void;
   onMouseDown?: (event: React.MouseEvent) => void;
 }
 
@@ -33,6 +34,7 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
   const {
     length = 1,
     scrollLength = 1,
+    scrollOffset: scrollOffsetProp,
     classPrefix = 'scrollbar',
     vertical,
     className,
@@ -65,44 +67,6 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
     [vertical ? 'minHeight' : 'minWidth']: SCROLLBAR_MIN_WIDTH
   };
   const valuenow = (scrollOffset.current / length) * 100 + width;
-
-  useLayoutEffect(() => {
-    // Only update if we haven't set the offset yet
-    if (!barOffset && barRef.current) {
-      setBarOffset(getOffset(barRef.current));
-    }
-    return () => {
-      releaseMouseMoves();
-    };
-  }, []); // Only run once on mount
-
-  useUpdateEffect(() => {
-    if (scrollOffset.current) {
-      // Update the position of the scroll bar when the height of the table content area changes.
-      scrollOffset.current = (scrollRange.current / scrollLength) * scrollOffset.current;
-      updateScrollBarPosition(0);
-    }
-
-    scrollRange.current = scrollLength;
-  }, [scrollLength]);
-
-  useImperativeHandle(ref, () => ({
-    get root() {
-      return barRef.current;
-    },
-    get handle() {
-      return handleRef.current;
-    },
-    onWheelScroll: (delta: number, momentum?: boolean) => {
-      const nextDelta = delta / (scrollLength / length);
-
-      updateScrollBarPosition(nextDelta, undefined, momentum);
-    },
-    resetScrollBarPosition: (forceDelta = 0) => {
-      scrollOffset.current = 0;
-      updateScrollBarPosition(0, forceDelta);
-    }
-  }));
 
   const updateScrollBarPosition = useCallback(
     (delta: number, forceDelta?: number, momentum?: boolean) => {
@@ -140,12 +104,63 @@ const Scrollbar = React.forwardRef((props: ScrollbarProps, ref) => {
     [length, scrollLength, setCssPosition, vertical]
   );
 
+  useLayoutEffect(() => {
+    // Only update if we haven't set the offset yet
+    if (!barOffset && barRef.current) {
+      setBarOffset(getOffset(barRef.current));
+    }
+    return () => {
+      releaseMouseMoves();
+    };
+  }, []); // Only run once on mount
+
+  useUpdateEffect(() => {
+    if (typeof scrollOffsetProp === 'number') {
+      scrollRange.current = scrollLength;
+      updateScrollBarPosition(0, scrollOffsetProp);
+      return;
+    }
+
+    if (scrollOffset.current) {
+      // Update the position of the scroll bar when the height of the table content area changes.
+      scrollOffset.current = (scrollRange.current / scrollLength) * scrollOffset.current;
+      updateScrollBarPosition(0);
+    }
+
+    scrollRange.current = scrollLength;
+  }, [scrollLength, scrollOffsetProp, updateScrollBarPosition]);
+
+  useLayoutEffect(() => {
+    if (typeof scrollOffsetProp === 'number') {
+      scrollRange.current = scrollLength;
+      updateScrollBarPosition(0, scrollOffsetProp);
+    }
+  }, [scrollLength, scrollOffsetProp, updateScrollBarPosition]);
+
+  useImperativeHandle(ref, () => ({
+    get root() {
+      return barRef.current;
+    },
+    get handle() {
+      return handleRef.current;
+    },
+    onWheelScroll: (delta: number, momentum?: boolean) => {
+      const nextDelta = delta / (scrollLength / length);
+
+      updateScrollBarPosition(nextDelta, undefined, momentum);
+    },
+    resetScrollBarPosition: (forceDelta = 0) => {
+      scrollOffset.current = 0;
+      updateScrollBarPosition(0, forceDelta);
+    }
+  }));
+
   const handleScroll = useCallback(
     (delta: number, event: React.MouseEvent) => {
       const scrollDelta = delta * (scrollLength / length);
 
       updateScrollBarPosition(delta);
-      onScroll?.(scrollDelta, event);
+      onScroll?.(scrollDelta, event, barRef.current);
     },
     [length, onScroll, scrollLength, updateScrollBarPosition]
   );

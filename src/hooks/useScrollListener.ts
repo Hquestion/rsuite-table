@@ -34,6 +34,7 @@ interface ScrollListenerProps {
   maxHeight?: number;
   tableBodyRef: React.RefObject<HTMLDivElement>;
   scrollbarXRef: React.RefObject<ScrollbarInstance>;
+  affixScrollbarXRef?: React.RefObject<ScrollbarInstance>;
   scrollbarYRef: React.RefObject<ScrollbarInstance>;
   disabledScroll?: boolean;
   loading?: boolean;
@@ -85,6 +86,7 @@ const useScrollListener = (props: ScrollListenerProps) => {
     autoHeight,
     tableBodyRef,
     scrollbarXRef,
+    affixScrollbarXRef,
     scrollbarYRef,
     disabledScroll,
     loading,
@@ -161,6 +163,32 @@ const useScrollListener = (props: ScrollListenerProps) => {
     // There will be no scrolling white screen.
     flushSync(() => setScrolling(false));
   }, []);
+
+  const syncHorizontalScrollbarPosition = useCallback(
+    (delta: number, target?: EventTarget | null) => {
+      const scrollbars = [scrollbarXRef.current, affixScrollbarXRef?.current].filter(Boolean);
+
+      scrollbars.forEach(scrollbar => {
+        if (scrollbar?.root !== target) {
+          scrollbar?.onWheelScroll?.(delta);
+        }
+      });
+    },
+    [affixScrollbarXRef, scrollbarXRef]
+  );
+
+  const resetHorizontalScrollbarPosition = useCallback(
+    (offset = 0, target?: EventTarget | null) => {
+      const scrollbars = [scrollbarXRef.current, affixScrollbarXRef?.current].filter(Boolean);
+
+      scrollbars.forEach(scrollbar => {
+        if (scrollbar?.root !== target) {
+          scrollbar?.resetScrollBarPosition?.(offset);
+        }
+      });
+    },
+    [affixScrollbarXRef, scrollbarXRef]
+  );
 
   /**
    * Triggered when scrolling, including: wheel/touch/scroll
@@ -242,10 +270,10 @@ const useScrollListener = (props: ScrollListenerProps) => {
     (deltaX: number, deltaY: number, momentumOptions?: { duration: number; bezier: string }) => {
       handleWheel(deltaX, deltaY, momentumOptions);
 
-      scrollbarXRef.current?.onWheelScroll?.(deltaX);
+      syncHorizontalScrollbarPosition(deltaX);
       scrollbarYRef.current?.onWheelScroll?.(deltaY, momentumOptions?.duration ? true : false);
     },
-    [handleWheel, scrollbarXRef, scrollbarYRef]
+    [handleWheel, scrollbarYRef, syncHorizontalScrollbarPosition]
   );
 
   const wheelHandler = useRef<WheelHandler | null>();
@@ -443,7 +471,7 @@ const useScrollListener = (props: ScrollListenerProps) => {
     const [nextScrollX, scrollbarX] = getControlledScrollLeftValue(left);
     setScrollX(nextScrollX);
     !loading && onScroll?.(Math.abs(nextScrollX), Math.abs(scrollY.current));
-    scrollbarXRef?.current?.resetScrollBarPosition?.(scrollbarX);
+    resetHorizontalScrollbarPosition(scrollbarX);
 
     deferUpdatePosition();
   };
@@ -537,12 +565,18 @@ const useScrollListener = (props: ScrollListenerProps) => {
     if (rtl) {
       // Initialize scroll position
       setScrollX(tableWidth.current - contentWidth.current - SCROLLBAR_WIDTH);
-      scrollbarXRef?.current?.resetScrollBarPosition?.(-scrollX.current);
+      resetHorizontalScrollbarPosition(-scrollX.current);
       forceUpdatePosition();
     }
   });
 
-  const onScrollHorizontal = useCallback((delta: number) => handleWheel(delta, 0), [handleWheel]);
+  const onScrollHorizontal = useCallback(
+    (delta: number, _event?: React.MouseEvent, source?: HTMLDivElement | null) => {
+      handleWheel(delta, 0);
+      syncHorizontalScrollbarPosition(delta, source);
+    },
+    [handleWheel, syncHorizontalScrollbarPosition]
+  );
   const onScrollVertical = useCallback(
     (delta: number, event) => handleWheel(0, delta, undefined, event),
     [handleWheel]

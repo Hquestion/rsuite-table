@@ -1144,6 +1144,219 @@ describe('Table', () => {
     });
   });
 
+  it('Should affix horizontal scrollbar inside a popup scroll container', async () => {
+    const data = [{ id: 1, name: 'a', email: 'a@example.com' }];
+    const tableRef = React.createRef<any>();
+
+    render(
+      <div data-testid="popup" style={{ position: 'fixed', inset: 0 }}>
+        <div
+          data-testid="popup-body"
+          style={{ height: 300, overflowY: 'auto', overflowX: 'hidden', padding: 20 }}
+        >
+          <div style={{ height: 400 }} />
+          <Table ref={tableRef} affixHorizontalScrollbar data={data} height={200} width={200}>
+            <Column width={150}>
+              <HeaderCell>Id</HeaderCell>
+              <Cell dataKey="id" />
+            </Column>
+            <Column width={150}>
+              <HeaderCell>Name</HeaderCell>
+              <Cell dataKey="name" />
+            </Column>
+            <Column width={150}>
+              <HeaderCell>Email</HeaderCell>
+              <Cell dataKey="email" />
+            </Column>
+          </Table>
+          <div style={{ height: 400 }} />
+        </div>
+      </div>
+    );
+
+    const popupBody = screen.getByTestId('popup-body') as HTMLElement;
+    const table = screen.getByRole('grid') as HTMLElement;
+
+    Object.defineProperties(popupBody, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 1200 },
+      clientLeft: { configurable: true, value: 0 }
+    });
+
+    popupBody.scrollTop = 0;
+    popupBody.scrollLeft = 0;
+
+    const popupBodyRectStub = sinon.stub(popupBody, 'getBoundingClientRect').returns({
+      top: 100,
+      left: 10,
+      bottom: 400,
+      right: 510,
+      width: 500,
+      height: 300
+    } as DOMRect);
+
+    const tableRectStub = sinon.stub(table, 'getBoundingClientRect').callsFake(() => ({
+      top: 500 - popupBody.scrollTop,
+      left: 40,
+      bottom: 700 - popupBody.scrollTop,
+      right: 240,
+      width: 200,
+      height: 200
+    })) as sinon.SinonStub;
+
+    try {
+      fireEvent(window, new Event('resize'));
+
+      await waitFor(() => {
+        const host = popupBody.querySelector('.rs-table-affix-scrollbar-host') as HTMLElement;
+        const affixScrollbar = popupBody.querySelector(
+          '.rs-table-scrollbar-container-affix'
+        ) as HTMLElement;
+
+        expect(host).to.exist;
+        expect(host.parentElement).to.equal(popupBody);
+        expect(affixScrollbar).to.exist;
+      });
+
+      await waitFor(() => {
+        const affixScrollbar = popupBody.querySelector(
+          '.rs-table-scrollbar-container-affix'
+        ) as HTMLElement;
+
+        expect(affixScrollbar.style.display).to.equal('none');
+      });
+
+      act(() => {
+        tableRef.current.scrollLeft(120);
+      });
+
+      popupBody.scrollTop = 150;
+      fireEvent.scroll(popupBody);
+
+      await waitFor(() => {
+        const affixScrollbar = popupBody.querySelector(
+          '.rs-table-scrollbar-container-affix'
+        ) as HTMLElement;
+        const inlineHandle = screen.getByRole('grid').querySelector(
+          '.rs-table-scrollbar-horizontal .rs-table-scrollbar-handle'
+        ) as HTMLElement;
+        const affixHandle = popupBody.querySelector(
+          '.rs-table-scrollbar-container-affix .rs-table-scrollbar-handle'
+        ) as HTMLElement;
+
+        expect(affixScrollbar.style.display).to.not.equal('none');
+        expect(affixScrollbar.style.left).to.equal('30px');
+        expect(affixScrollbar.style.bottom).to.equal('0px');
+        expect(affixScrollbar.style.transform).to.equal('translate3d(-20px, 20px, 0px)');
+        expect(inlineHandle.style.transform).to.equal(affixHandle.style.transform);
+      });
+    } finally {
+      popupBodyRectStub.restore();
+      tableRectStub.restore();
+    }
+  });
+
+  it('Should use the nearest vertical scroll container for affix horizontal scrollbar', async () => {
+    const data = [{ id: 1, name: 'a', email: 'a@example.com' }];
+
+    render(
+      <div data-testid="outer" style={{ height: 500, overflowY: 'auto' }}>
+        <div
+          data-testid="inner"
+          style={{ height: 300, overflowY: 'auto', overflowX: 'hidden' }}
+        >
+          <div style={{ height: 400 }} />
+          <Table affixHorizontalScrollbar data={data} height={200} width={200}>
+            <Column width={150}>
+              <HeaderCell>Id</HeaderCell>
+              <Cell dataKey="id" />
+            </Column>
+            <Column width={150}>
+              <HeaderCell>Name</HeaderCell>
+              <Cell dataKey="name" />
+            </Column>
+            <Column width={150}>
+              <HeaderCell>Email</HeaderCell>
+              <Cell dataKey="email" />
+            </Column>
+          </Table>
+          <div style={{ height: 400 }} />
+        </div>
+      </div>
+    );
+
+    const outer = screen.getByTestId('outer') as HTMLElement;
+    const inner = screen.getByTestId('inner') as HTMLElement;
+    const table = screen.getByRole('grid') as HTMLElement;
+
+    Object.defineProperties(outer, {
+      clientHeight: { configurable: true, value: 500 },
+      scrollHeight: { configurable: true, value: 2000 },
+      clientLeft: { configurable: true, value: 0 }
+    });
+
+    Object.defineProperties(inner, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 1200 },
+      clientLeft: { configurable: true, value: 0 }
+    });
+
+    inner.scrollTop = 150;
+    inner.scrollLeft = 0;
+
+    const outerRectStub = sinon.stub(outer, 'getBoundingClientRect').returns({
+      top: 0,
+      left: 0,
+      bottom: 500,
+      right: 600,
+      width: 600,
+      height: 500
+    } as DOMRect);
+
+    const innerRectStub = sinon.stub(inner, 'getBoundingClientRect').returns({
+      top: 100,
+      left: 10,
+      bottom: 400,
+      right: 510,
+      width: 500,
+      height: 300
+    } as DOMRect);
+
+    const tableRectStub = sinon.stub(table, 'getBoundingClientRect').callsFake(() => ({
+      top: 500 - inner.scrollTop,
+      left: 40,
+      bottom: 700 - inner.scrollTop,
+      right: 240,
+      width: 200,
+      height: 200
+    })) as sinon.SinonStub;
+
+    try {
+      fireEvent(window, new Event('resize'));
+
+      await waitFor(() => {
+        const host = inner.querySelector('.rs-table-affix-scrollbar-host') as HTMLElement;
+        expect(host).to.exist;
+        expect(host.parentElement).to.equal(inner);
+      });
+
+      fireEvent.scroll(inner);
+
+      await waitFor(() => {
+        const affixScrollbar = inner.querySelector(
+          '.rs-table-scrollbar-container-affix'
+        ) as HTMLElement;
+
+        expect(affixScrollbar).to.exist;
+        expect(affixScrollbar.style.display).to.not.equal('none');
+      });
+    } finally {
+      outerRectStub.restore();
+      innerRectStub.restore();
+      tableRectStub.restore();
+    }
+  });
+
   it('Should not render scrollbars', () => {
     render(
       <Table data={[{ name: 'name' }]} rowKey="name" height={100}>

@@ -115,6 +115,14 @@ const examples = [
     content: require('./examples/AffixHorizontalScrollbar.md')
   },
   {
+    title: 'Container Affix Horizontal Scrollbar',
+    content: require('./examples/ContainerAffixHorizontalScrollbar.md')
+  },
+  {
+    title: 'ReflexElement Container Affix',
+    content: require('./examples/ReflexElementAffixHorizontalScrollbar.md')
+  },
+  {
     title: 'Fluid',
     content: require('./examples/FluidColumnTable.md')
   },
