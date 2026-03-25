@@ -1,4 +1,4 @@
-import React, { useImperativeHandle, useState, useRef, forwardRef, useLayoutEffect } from 'react';
+import React, { useImperativeHandle, useState, useRef, forwardRef } from 'react';
 import sinon from 'sinon';
 import getHeight from 'dom-lib/getHeight';
 import getWidth from 'dom-lib/getWidth';
@@ -12,19 +12,6 @@ import type { TableInstance } from '../src/Table';
 import '../src/less/index.less';
 
 describe('Table', () => {
-  const createRect = (left: number, top: number, width: number, height: number): DOMRect =>
-    ({
-      bottom: top + height,
-      height,
-      left,
-      right: left + width,
-      toJSON: () => ({}),
-      top,
-      width,
-      x: left,
-      y: top
-    }) as DOMRect;
-
   it('Should output a table', () => {
     render(<Table>test</Table>);
     expect(screen.getByRole('grid')).to.have.class('rs-table');
@@ -992,143 +979,6 @@ describe('Table', () => {
       expect(shouldUpdateScrolSpy).to.be.callCount(2);
       expect(shouldUpdateScrolSpy).to.be.calledWith('widthChanged');
       expect(scrollbar.style.width).to.equal('100px');
-    });
-  });
-
-  it('Should affix the horizontal scrollbar to the nearest scroll container automatically', async () => {
-    const data = [{ id: 1, name: 'a', company: 'rsuite' }];
-
-    const App = () => {
-      const containerRef = useRef<HTMLDivElement>(null);
-
-      useLayoutEffect(() => {
-        const container = containerRef.current as HTMLDivElement;
-
-        Object.defineProperty(container, 'clientHeight', { configurable: true, value: 300 });
-        Object.defineProperty(container, 'scrollHeight', { configurable: true, value: 1000 });
-        Object.defineProperty(container, 'scrollTop', {
-          configurable: true,
-          value: 150,
-          writable: true
-        });
-        Object.defineProperty(container, 'scrollLeft', {
-          configurable: true,
-          value: 0,
-          writable: true
-        });
-
-        container.getBoundingClientRect = () => createRect(0, 0, 320, 300);
-
-        const table = container.querySelector('.rs-table') as HTMLDivElement;
-        table.getBoundingClientRect = () => createRect(10, 100 - container.scrollTop, 200, 400);
-      }, []);
-
-      return (
-        <div ref={containerRef} data-testid="scroll-container" style={{ overflow: 'auto' }}>
-          <div style={{ paddingTop: 100 }}>
-            <Table affixHorizontalScrollbar data={data} height={400} width={200}>
-              <Column width={120}>
-                <HeaderCell>ID</HeaderCell>
-                <Cell dataKey="id" />
-              </Column>
-              <Column width={160}>
-                <HeaderCell>Name</HeaderCell>
-                <Cell dataKey="name" />
-              </Column>
-              <Column width={180}>
-                <HeaderCell>Company</HeaderCell>
-                <Cell dataKey="company" />
-              </Column>
-            </Table>
-          </div>
-        </div>
-      );
-    };
-
-    render(<App />);
-
-    await waitFor(() => {
-      const scrollContainer = screen.getByTestId('scroll-container');
-      const table = screen.getByRole('grid');
-      const scrollbar = Array.from(
-        scrollContainer.querySelectorAll('.rs-table-scrollbar-horizontal')
-      ).find(element => element.parentElement === scrollContainer);
-
-      expect(scrollbar).to.exist;
-      expect(table.querySelector('.rs-table-scrollbar-horizontal')).to.not.exist;
-      expect(scrollbar).to.have.style('left', '10px');
-    });
-  });
-
-  it('Should allow overriding the horizontal scrollbar affix container', async () => {
-    const data = [{ id: 1, name: 'a', company: 'rsuite' }];
-
-    const App = () => {
-      const outerRef = useRef<HTMLDivElement>(null);
-      const innerRef = useRef<HTMLDivElement>(null);
-
-      useLayoutEffect(() => {
-        const outer = outerRef.current as HTMLDivElement;
-        const inner = innerRef.current as HTMLDivElement;
-
-        Object.defineProperty(outer, 'clientHeight', { configurable: true, value: 320 });
-        Object.defineProperty(outer, 'scrollHeight', { configurable: true, value: 1200 });
-        Object.defineProperty(outer, 'scrollTop', { configurable: true, value: 180, writable: true });
-        Object.defineProperty(outer, 'scrollLeft', { configurable: true, value: 0, writable: true });
-        Object.defineProperty(inner, 'clientHeight', { configurable: true, value: 260 });
-        Object.defineProperty(inner, 'scrollHeight', { configurable: true, value: 900 });
-        Object.defineProperty(inner, 'scrollTop', { configurable: true, value: 60, writable: true });
-        Object.defineProperty(inner, 'scrollLeft', { configurable: true, value: 0, writable: true });
-
-        outer.getBoundingClientRect = () => createRect(0, 0, 360, 320);
-        inner.getBoundingClientRect = () => createRect(0, 40, 320, 260);
-
-        const table = inner.querySelector('.rs-table') as HTMLDivElement;
-        table.getBoundingClientRect = () => createRect(20, 140 - outer.scrollTop, 200, 400);
-      }, []);
-
-      return (
-        <div ref={outerRef} data-testid="outer-container" style={{ overflow: 'auto' }}>
-          <div ref={innerRef} data-testid="inner-container" style={{ overflow: 'auto' }}>
-            <div style={{ paddingTop: 140 }}>
-              <Table
-                affixHorizontalScrollbar
-                affixHorizontalScrollbarContainer={outerRef}
-                data={data}
-                height={400}
-                width={200}
-              >
-                <Column width={120}>
-                  <HeaderCell>ID</HeaderCell>
-                  <Cell dataKey="id" />
-                </Column>
-                <Column width={160}>
-                  <HeaderCell>Name</HeaderCell>
-                  <Cell dataKey="name" />
-                </Column>
-                <Column width={180}>
-                  <HeaderCell>Company</HeaderCell>
-                  <Cell dataKey="company" />
-                </Column>
-              </Table>
-            </div>
-          </div>
-        </div>
-      );
-    };
-
-    render(<App />);
-
-    await waitFor(() => {
-      const outerContainer = screen.getByTestId('outer-container');
-      const innerContainer = screen.getByTestId('inner-container');
-      const scrollbar = Array.from(
-        outerContainer.querySelectorAll('.rs-table-scrollbar-horizontal')
-      ).find(element => element.parentElement === outerContainer);
-
-      expect(scrollbar).to.exist;
-      expect(innerContainer.querySelector('.rs-table-scrollbar-horizontal')).to.not.exist;
-      expect(scrollbar).to.have.style('left', '20px');
     });
   });
 

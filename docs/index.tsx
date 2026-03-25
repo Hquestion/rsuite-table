@@ -115,10 +115,6 @@ const examples = [
     content: require('./examples/AffixHorizontalScrollbar.md')
   },
   {
-    title: 'Popup Container Affix',
-    content: require('./examples/PopupAffixHorizontalScrollbar.md')
-  },
-  {
     title: 'Fluid',
     content: require('./examples/FluidColumnTable.md')
   },

@@ -1,5 +1,4 @@
 import React, { useRef, useCallback, useImperativeHandle, useReducer, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import isFunction from 'lodash/isFunction';
 import debounce from 'lodash/debounce';
 import Row, { RowProps } from './Row';
@@ -65,9 +64,6 @@ export interface TableProps<Row extends RowDataType, Key extends RowKeyType>
 
   /** Affix the table horizontal scrollbar to the specified position on the page */
   affixHorizontalScrollbar?: boolean | number;
-
-  /** Override the container used when affixing the horizontal scrollbar */
-  affixHorizontalScrollbarContainer?: HTMLElement | React.RefObject<HTMLElement | null>;
 
   /** Show the border of the table */
   bordered?: boolean;
@@ -309,7 +305,6 @@ const Table = React.forwardRef(
       rowExpandedHeight = 100,
       disabledScroll,
       affixHorizontalScrollbar,
-      affixHorizontalScrollbarContainer,
       loadAnimation,
       shouldUpdateScroll = true,
       renderRow: renderRowProp,
@@ -454,16 +449,14 @@ const Table = React.forwardRef(
       onTableResizeChange: handleTableResizeChange
     });
 
-    const { container: affixScrollbarContainer, style: affixScrollbarStyle } = useAffix({
+    useAffix({
       getTableHeight,
       contentHeight,
       affixHorizontalScrollbar,
-      affixHorizontalScrollbarContainer,
       affixHeader,
       tableOffset,
       headerOffset,
       headerHeight,
-      tableRef,
       scrollbarXRef,
       affixHeaderWrapperRef
     });
@@ -929,24 +922,16 @@ const Table = React.forwardRef(
       const scrollbars: React.ReactNode[] = [];
 
       if (hasHorizontalScrollbar) {
-        const horizontalScrollbar = (
+        scrollbars.push(
           <Scrollbar
             key="scrollbar"
             tableId={id}
-            className={affixScrollbarContainer ? prefix('scrollbar-container-affix') : undefined}
-            style={{ width: tableWidth.current, ...affixScrollbarStyle }}
+            style={{ width: tableWidth.current }}
             length={tableWidth.current}
             onScroll={onScrollHorizontal}
             scrollLength={contentWidth.current}
-            scrollOffset={Math.abs(scrollX.current)}
             ref={scrollbarXRef}
           />
-        );
-
-        scrollbars.push(
-          affixScrollbarContainer
-            ? createPortal(horizontalScrollbar, affixScrollbarContainer)
-            : horizontalScrollbar
         );
       }
 
