@@ -230,7 +230,7 @@ const useTableDimension = <Row extends RowDataType, Key>(props: TableDimensionPr
       }
 
       if (prevWidth && prevWidth !== tableWidth.current) {
-        scrollX.current = 0;
+        // scrollX.current = 0;
         onTableResizeChange?.(prevWidth, 'widthChanged');
       }
 
