@@ -14,13 +14,11 @@ interface AffixProps {
   getTableHeight: () => number;
   contentHeight: React.MutableRefObject<number>;
   affixHeader?: boolean | number;
-  affixHeaderContainer?: HTMLElement | React.RefObject<HTMLElement | null>;
   affixHorizontalScrollbar?: boolean | number;
   affixHorizontalScrollbarContainer?: HTMLElement | React.RefObject<HTMLElement | null>;
   tableOffset: React.RefObject<ElementOffset>;
   headerOffset: React.RefObject<ElementOffset>;
   headerHeight: number;
-  headerWrapperRef: React.RefObject<HTMLDivElement>;
   tableRef: React.RefObject<HTMLDivElement>;
   scrollbarXRef: React.RefObject<ScrollbarInstance>;
   affixHeaderWrapperRef: React.RefObject<HTMLDivElement>;
@@ -77,30 +75,19 @@ const useAffix = (props: AffixProps) => {
     affixHorizontalScrollbar,
     affixHorizontalScrollbarContainer,
     affixHeader,
-    affixHeaderContainer,
     tableOffset,
     headerOffset,
     headerHeight,
-    headerWrapperRef,
     tableRef,
     scrollbarXRef,
     affixHeaderWrapperRef
   } = props;
 
   const windowScrollListener = useRef<ListenerCallback>();
-  const headerContainerScrollListener = useRef<ListenerCallback>();
-  const scrollbarContainerScrollListener = useRef<ListenerCallback>();
-  const headerResizeListener = useRef<ListenerCallback>();
-  const scrollbarResizeListener = useRef<ListenerCallback>();
-  const adjustedContainersRef = useRef<HTMLElement[]>([]);
+  const containerScrollListener = useRef<ListenerCallback>();
+  const resizeListener = useRef<ListenerCallback>();
+  const adjustedContainerRef = useRef<HTMLElement | null>(null);
   const [containerAffixState, setContainerAffixState] = useState<{
-    container: HTMLElement | null;
-    style: React.CSSProperties | null;
-  }>({
-    container: null,
-    style: null
-  });
-  const [headerAffixState, setHeaderAffixState] = useState<{
     container: HTMLElement | null;
     style: React.CSSProperties | null;
   }>({
@@ -113,12 +100,6 @@ const useAffix = (props: AffixProps) => {
 
     return container || getScrollParent(tableRef.current);
   }, [affixHorizontalScrollbarContainer, tableRef]);
-
-  const getHeaderScrollContainer = useCallback((): ScrollContainer => {
-    const container = getContainerElement(affixHeaderContainer);
-
-    return container || getScrollParent(tableRef.current);
-  }, [affixHeaderContainer, tableRef]);
 
   const handleAffixHorizontalScrollbar = useCallback(() => {
     const scrollY = window.scrollY || window.pageYOffset;
@@ -189,44 +170,6 @@ const useAffix = (props: AffixProps) => {
 
   const handleAffixTableHeader = useCallback(() => {
     const top = typeof affixHeader === 'number' ? affixHeader : 0;
-    const target = getHeaderScrollContainer();
-
-    if (isElementContainer(target)) {
-      const headerNode = headerWrapperRef.current;
-
-      if (!headerNode) {
-        setHeaderAffixState({ container: null, style: null });
-        return;
-      }
-
-      const containerRect = target.getBoundingClientRect();
-      const headerRect = headerNode.getBoundingClientRect();
-      const tableRect = tableRef.current?.getBoundingClientRect();
-      const offsetTop = headerRect.top - containerRect.top + target.scrollTop;
-      const fixedHeader =
-        target.scrollTop - (offsetTop - top) >= 0 &&
-        target.scrollTop < offsetTop - top + contentHeight.current;
-
-      if (!fixedHeader || !tableRect) {
-        setHeaderAffixState({ container: null, style: null });
-        return;
-      }
-
-      setHeaderAffixState({
-        container: target,
-        style: {
-          left: tableRect.left - containerRect.left + target.scrollLeft,
-          position: 'absolute',
-          top: target.scrollTop + top,
-          width: tableRect.width,
-          zIndex: 3
-        }
-      });
-      return;
-    }
-
-    setHeaderAffixState({ container: null, style: null });
-
     const scrollY = window.scrollY || window.pageYOffset;
     const offsetTop = headerOffset.current?.top || 0;
     const fixedHeader =
@@ -235,15 +178,7 @@ const useAffix = (props: AffixProps) => {
     if (affixHeaderWrapperRef.current) {
       toggleClass(affixHeaderWrapperRef.current, 'fixed', fixedHeader);
     }
-  }, [
-    affixHeader,
-    affixHeaderWrapperRef,
-    contentHeight,
-    getHeaderScrollContainer,
-    headerOffset,
-    headerWrapperRef,
-    tableRef
-  ]);
+  }, [affixHeader, affixHeaderWrapperRef, contentHeight, headerOffset]);
 
   const handleAffix = useCallback(() => {
     if (isNumberOrTrue(affixHeader)) {
@@ -266,87 +201,53 @@ const useAffix = (props: AffixProps) => {
   useUpdateEffect(handleAffix, [getTableHeight]);
 
   useEffect(() => {
-    const headerTarget = getHeaderScrollContainer();
-    const scrollbarTarget = getHorizontalScrollContainer();
+    const target = getHorizontalScrollContainer();
 
     if (!isNumberOrTrue(affixHorizontalScrollbar)) {
       setContainerAffixState({ container: null, style: null });
     }
 
-    if (!isNumberOrTrue(affixHeader)) {
-      setHeaderAffixState({ container: null, style: null });
-    }
-
     if (
       isNumberOrTrue(affixHorizontalScrollbar) &&
-      isElementContainer(scrollbarTarget) &&
-      window.getComputedStyle(scrollbarTarget).position === 'static'
+      isElementContainer(target) &&
+      window.getComputedStyle(target).position === 'static'
     ) {
-      addStyle(scrollbarTarget, 'position', 'relative');
-      adjustedContainersRef.current.push(scrollbarTarget);
+      addStyle(target, 'position', 'relative');
+      adjustedContainerRef.current = target;
     }
 
     if (
-      isNumberOrTrue(affixHeader) &&
-      isElementContainer(headerTarget) &&
-      window.getComputedStyle(headerTarget).position === 'static' &&
-      !adjustedContainersRef.current.includes(headerTarget)
-    ) {
-      addStyle(headerTarget, 'position', 'relative');
-      adjustedContainersRef.current.push(headerTarget);
-    }
-
-    if (
-      (isNumberOrTrue(affixHeader) && !isElementContainer(headerTarget)) ||
-      (isNumberOrTrue(affixHorizontalScrollbar) && !isElementContainer(scrollbarTarget))
+      isNumberOrTrue(affixHeader) ||
+      (isNumberOrTrue(affixHorizontalScrollbar) && !isElementContainer(target))
     ) {
       windowScrollListener.current = on(window, 'scroll', handleAffix);
     }
 
-    if (isNumberOrTrue(affixHorizontalScrollbar) && isElementContainer(scrollbarTarget)) {
-      scrollbarContainerScrollListener.current = on(
-        scrollbarTarget,
-        'scroll',
-        handleAffixHorizontalScrollbar
-      );
-      scrollbarResizeListener.current = on(window, 'resize', handleAffixHorizontalScrollbar);
+    if (isNumberOrTrue(affixHorizontalScrollbar) && isElementContainer(target)) {
+      containerScrollListener.current = on(target, 'scroll', handleAffixHorizontalScrollbar);
+      resizeListener.current = on(window, 'resize', handleAffixHorizontalScrollbar);
       handleAffixHorizontalScrollbar();
-    }
-
-    if (isNumberOrTrue(affixHeader) && isElementContainer(headerTarget)) {
-      headerContainerScrollListener.current = on(headerTarget, 'scroll', handleAffixTableHeader);
-      headerResizeListener.current = on(window, 'resize', handleAffixTableHeader);
-      handleAffixTableHeader();
     }
 
     return () => {
       windowScrollListener.current?.off();
-      headerContainerScrollListener.current?.off();
-      scrollbarContainerScrollListener.current?.off();
-      headerResizeListener.current?.off();
-      scrollbarResizeListener.current?.off();
+      containerScrollListener.current?.off();
+      resizeListener.current?.off();
 
-      adjustedContainersRef.current.forEach(container => removeStyle(container, 'position'));
-      adjustedContainersRef.current = [];
+      if (adjustedContainerRef.current) {
+        removeStyle(adjustedContainerRef.current, 'position');
+        adjustedContainerRef.current = null;
+      }
     };
   }, [
     affixHeader,
-    affixHeaderContainer,
     affixHorizontalScrollbar,
     getHorizontalScrollContainer,
-    getHeaderScrollContainer,
     handleAffix,
-    handleAffixTableHeader,
     handleAffixHorizontalScrollbar
   ]);
 
-  return {
-    headerContainer: headerAffixState.container,
-    headerStyle: headerAffixState.style,
-    isHeaderContainerMode: isElementContainer(getHeaderScrollContainer()),
-    scrollbarContainer: containerAffixState.container,
-    scrollbarStyle: containerAffixState.style
-  };
+  return containerAffixState;
 };
 
 export default useAffix;

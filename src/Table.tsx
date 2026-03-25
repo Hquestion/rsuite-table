@@ -63,9 +63,6 @@ export interface TableProps<Row extends RowDataType, Key extends RowKeyType>
   /** Affix the table header to the specified position on the page */
   affixHeader?: boolean | number;
 
-  /** Override the container used when affixing the table header */
-  affixHeaderContainer?: HTMLElement | React.RefObject<HTMLElement | null>;
-
   /** Affix the table horizontal scrollbar to the specified position on the page */
   affixHorizontalScrollbar?: boolean | number;
 
@@ -304,7 +301,6 @@ const Table = React.forwardRef(
       height = 200,
       autoHeight,
       fillHeight,
-      affixHeaderContainer,
       rtl: rtlProp,
       translate3d,
       rowKey,
@@ -458,23 +454,15 @@ const Table = React.forwardRef(
       onTableResizeChange: handleTableResizeChange
     });
 
-    const {
-      headerContainer: affixHeaderContainerElement,
-      headerStyle: affixHeaderStyle,
-      isHeaderContainerMode,
-      scrollbarContainer: affixScrollbarContainer,
-      scrollbarStyle: affixScrollbarStyle
-    } = useAffix({
+    const { container: affixScrollbarContainer, style: affixScrollbarStyle } = useAffix({
       getTableHeight,
       contentHeight,
       affixHorizontalScrollbar,
       affixHorizontalScrollbarContainer,
       affixHeader,
-      affixHeaderContainer,
       tableOffset,
       headerOffset,
       headerHeight,
-      headerWrapperRef,
       tableRef,
       scrollbarXRef,
       affixHeaderWrapperRef
@@ -776,25 +764,14 @@ const Table = React.forwardRef(
 
       // Affix header
       const header = (
-        <div
-          className={prefix('affix-header')}
-          style={{
-            ...fixedStyle,
-            ...((affixHeaderContainerElement && affixHeaderStyle) || {}),
-            visibility: affixHeaderContainerElement ? 'visible' : undefined
-          }}
-          ref={affixHeaderWrapperRef}
-        >
+        <div className={prefix('affix-header')} style={fixedStyle} ref={affixHeaderWrapperRef}>
           {renderRow(rowProps, headerCells)}
         </div>
       );
 
       return (
         <React.Fragment>
-          {(affixHeader === 0 || affixHeader) &&
-            (affixHeaderContainerElement
-              ? createPortal(header, affixHeaderContainerElement)
-              : !isHeaderContainerMode && header)}
+          {(affixHeader === 0 || affixHeader) && header}
           <div role="rowgroup" className={prefix('header-row-wrapper')} ref={headerWrapperRef}>
             {renderRow(rowProps, headerCells)}
           </div>
@@ -957,7 +934,7 @@ const Table = React.forwardRef(
             key="scrollbar"
             tableId={id}
             className={affixScrollbarContainer ? prefix('scrollbar-container-affix') : undefined}
-            style={{ width: tableWidth.current, ...(affixScrollbarStyle || {}) }}
+            style={{ width: tableWidth.current, ...affixScrollbarStyle }}
             length={tableWidth.current}
             onScroll={onScrollHorizontal}
             scrollLength={contentWidth.current}

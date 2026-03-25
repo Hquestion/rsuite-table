@@ -30,8 +30,8 @@ const App = () => {
         </Checkbox>
 
         <div style={{ color: '#575757' }}>
-          Scroll inside the popup body. Both the header and the horizontal scrollbar will stay
-          attached to the popup container instead of the page viewport.
+          Scroll inside the popup body. The horizontal scrollbar will stay attached to the popup
+          container instead of the page viewport.
         </div>
       </VStack>
 
@@ -84,9 +84,7 @@ const App = () => {
           </div>
 
           <Table
-            affixHeader
             affixHorizontalScrollbar
-            affixHeaderContainer={manualContainer ? popupBodyRef : undefined}
             affixHorizontalScrollbarContainer={manualContainer ? popupBodyRef : undefined}
             data={data}
             height={360}
